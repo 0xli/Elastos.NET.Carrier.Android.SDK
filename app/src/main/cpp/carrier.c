@@ -303,6 +303,76 @@ jbyteArray getNospam(JNIEnv *env, jobject thiz)
 }
 
 static
+void secureZero(void *memory, size_t size)
+{
+    volatile uint8_t *bytes = (volatile uint8_t *)memory;
+    while (size--)
+        *bytes++ = 0;
+}
+
+static
+jbyteArray createIdentityAuthProof(JNIEnv *env, jobject thiz,
+                                   jbyteArray jserverPublicKey,
+                                   jbyteArray jtranscript)
+{
+    uint8_t serverPublicKey[32];
+    uint8_t proof[CARRIER_IDENTITY_AUTH_PROOF_BYTES];
+    jbyte *transcript = NULL;
+    jbyteArray result = NULL;
+    jsize transcriptLen;
+    int rc;
+
+    if (!jserverPublicKey || !jtranscript ||
+            (*env)->GetArrayLength(env, jserverPublicKey) != 32) {
+        setErrorCode(CARRIER_GENERAL_ERROR(ERROR_INVALID_ARGS));
+        return NULL;
+    }
+
+    transcriptLen = (*env)->GetArrayLength(env, jtranscript);
+    if (transcriptLen <= 0 || transcriptLen > 65536) {
+        setErrorCode(CARRIER_GENERAL_ERROR(ERROR_INVALID_ARGS));
+        return NULL;
+    }
+
+    transcript = malloc((size_t)transcriptLen);
+    if (!transcript) {
+        setErrorCode(CARRIER_GENERAL_ERROR(ERROR_OUT_OF_MEMORY));
+        return NULL;
+    }
+
+    (*env)->GetByteArrayRegion(env, jserverPublicKey, 0, 32,
+                               (jbyte *)serverPublicKey);
+    (*env)->GetByteArrayRegion(env, jtranscript, 0, transcriptLen, transcript);
+    if ((*env)->ExceptionCheck(env))
+        goto cleanup;
+
+    rc = carrier_identity_create_auth_proof(getCarrier(env, thiz),
+            serverPublicKey, (const uint8_t *)transcript,
+            (size_t)transcriptLen, proof);
+    if (rc < 0) {
+        setErrorCode(carrier_get_error());
+        goto cleanup;
+    }
+
+    result = (*env)->NewByteArray(env, CARRIER_IDENTITY_AUTH_PROOF_BYTES);
+    if (!result) {
+        setErrorCode(CARRIER_GENERAL_ERROR(ERROR_LANGUAGE_BINDING));
+        goto cleanup;
+    }
+    (*env)->SetByteArrayRegion(env, result, 0,
+            CARRIER_IDENTITY_AUTH_PROOF_BYTES, (const jbyte *)proof);
+
+cleanup:
+    secureZero(serverPublicKey, sizeof(serverPublicKey));
+    secureZero(proof, sizeof(proof));
+    if (transcript) {
+        secureZero(transcript, (size_t)transcriptLen);
+        free(transcript);
+    }
+    return result;
+}
+
+static
 jboolean setSelfInfo(JNIEnv* env, jobject thiz, jobject juserInfo)
 {
     CarrierUserInfo ui;
@@ -878,6 +948,7 @@ static JNINativeMethod gMethods[] = {
         {"native_kill",        "()V",                              (void *) carrierKill        },
         {"get_address",        "()"_J("String;"),                  (void *) getAddress         },
         {"get_node_id",        "()"_J("String;"),                  (void *) getNodeId          },
+        {"create_identity_auth_proof", "([B[B)[B",               (void *) createIdentityAuthProof },
         {"set_nospam",         "([B)Z",                            (void *) setNospam          },
         {"get_nospam",         "()[B",                             (void *) getNospam          },
         {"set_self_info",      "("_W("UserInfo;)Z"),               (void *) setSelfInfo        },

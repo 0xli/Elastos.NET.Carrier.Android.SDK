@@ -352,6 +352,7 @@ public class Carrier {
 
 	private native String get_address();
 	private native String get_node_id();
+	private native byte[] create_identity_auth_proof(byte[] serverPublicKey, byte[] transcript);
 
 	private native boolean set_nospam(byte[] nospam);
 	private native byte[] get_nospam();
@@ -581,6 +582,29 @@ public class Carrier {
 		String userId = getNodeId();
 		Log.d(TAG, "Current carrier userId: " + userId);
 		return userId;
+	}
+
+	/**
+	 * Create an accountless rendezvous authentication proof with the Carrier
+	 * identity already loaded by this instance. No Carrier network operation is
+	 * performed and the identity private key is never returned to Java.
+	 *
+	 * @param serverPublicKey 32-byte ephemeral X25519 node public key.
+	 * @param transcript exact RSP authentication transcript bytes.
+	 * @return 32-byte HMAC-SHA256 proof.
+	 * @throws CarrierException if proof creation fails.
+	 */
+	public byte[] createIdentityAuthProof(byte[] serverPublicKey, byte[] transcript)
+			throws CarrierException {
+		if (serverPublicKey == null || serverPublicKey.length != 32)
+			throw new IllegalArgumentException("serverPublicKey must be 32 bytes");
+		if (transcript == null || transcript.length == 0 || transcript.length > 65536)
+			throw new IllegalArgumentException("transcript length must be 1..65536 bytes");
+
+		byte[] proof = create_identity_auth_proof(serverPublicKey, transcript);
+		if (proof == null)
+			throw CarrierException.fromErrorCode(get_error_code());
+		return proof;
 	}
 
 	/**
