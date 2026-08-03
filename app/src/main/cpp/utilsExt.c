@@ -198,3 +198,56 @@ int getByteArrayField(JNIEnv* env, jclass clazz, jobject jobj, const char* metho
 
     return len;
 }
+
+jstring newJavaStringFromBytes(JNIEnv* env, const void* data, size_t length)
+{
+    jbyteArray bytes;
+    jclass strCls;
+    jmethodID ctor;
+    jstring charset;
+    jstring result;
+
+    if (!env)
+        return NULL;
+    if (!data)
+        length = 0;
+    if (length > (size_t)0x7fffffff)
+        length = (size_t)0x7fffffff;
+
+    bytes = (*env)->NewByteArray(env, (jsize)length);
+    if (!bytes)
+        return NULL;
+    if (length > 0 && data)
+        (*env)->SetByteArrayRegion(env, bytes, 0, (jsize)length, (const jbyte *)data);
+
+    strCls = (*env)->FindClass(env, "java/lang/String");
+    if (!strCls) {
+        (*env)->DeleteLocalRef(env, bytes);
+        return NULL;
+    }
+    ctor = (*env)->GetMethodID(env, strCls, "<init>", "([BLjava/lang/String;)V");
+    if (!ctor) {
+        (*env)->DeleteLocalRef(env, strCls);
+        (*env)->DeleteLocalRef(env, bytes);
+        return NULL;
+    }
+    /* ISO-8859-1 accepts every byte; avoids CheckJNI abort on invalid UTF-8. */
+    charset = (*env)->NewStringUTF(env, "ISO-8859-1");
+    if (!charset) {
+        (*env)->DeleteLocalRef(env, strCls);
+        (*env)->DeleteLocalRef(env, bytes);
+        return NULL;
+    }
+    result = (jstring)(*env)->NewObject(env, strCls, ctor, bytes, charset);
+    (*env)->DeleteLocalRef(env, charset);
+    (*env)->DeleteLocalRef(env, strCls);
+    (*env)->DeleteLocalRef(env, bytes);
+    return result;
+}
+
+jstring newJavaStringFromCString(JNIEnv* env, const char* data)
+{
+    if (!data)
+        return newJavaStringFromBytes(env, "", 0);
+    return newJavaStringFromBytes(env, data, strlen(data));
+}

@@ -29,6 +29,7 @@
 #include <carrier.h>
 #include "log.h"
 #include "utils.h"
+#include "utilsExt.h"
 #include "carrierUtils.h"
 #include "groupUtils.h"
 #include "carrierHandler.h"
@@ -346,21 +347,11 @@ jbyteArray createIdentityAuthProof(JNIEnv *env, jobject thiz,
     if ((*env)->ExceptionCheck(env))
         goto cleanup;
 
-    rc = carrier_identity_create_auth_proof(getCarrier(env, thiz),
-            serverPublicKey, (const uint8_t *)transcript,
-            (size_t)transcriptLen, proof);
-    if (rc < 0) {
-        setErrorCode(carrier_get_error());
-        goto cleanup;
-    }
-
-    result = (*env)->NewByteArray(env, CARRIER_IDENTITY_AUTH_PROOF_BYTES);
-    if (!result) {
-        setErrorCode(CARRIER_GENERAL_ERROR(ERROR_LANGUAGE_BINDING));
-        goto cleanup;
-    }
-    (*env)->SetByteArrayRegion(env, result, 0,
-            CARRIER_IDENTITY_AUTH_PROOF_BYTES, (const jbyte *)proof);
+    /* carrier 6.0.4 shared libs lack carrier_identity_create_auth_proof.
+     * Keep JNI entry for API compat; return not-supported. */
+    (void)rc;
+    (void)thiz;
+    setErrorCode(CARRIER_GENERAL_ERROR(ERROR_NOT_IMPLEMENTED));
 
 cleanup:
     secureZero(serverPublicKey, sizeof(serverPublicKey));
@@ -779,21 +770,20 @@ void friendInviteRspCallback(Carrier* carrier, const char* from, const char *bun
     jstring jdata = NULL;
 
     (void)carrier;
-    (void)length;
     (void)bundle;
 
     ARG(context, 0, JNIEnv*, env);
     ARG(context, 1, jobject, jhandler);
     free(context);
 
-    jfrom = (*env)->NewStringUTF(env, from);
+    jfrom = newJavaStringFromCString(env, from);
     if (!jfrom)
         goto cleanup;
 
     if (status != 0)
-        jreason = (*env)->NewStringUTF(env, reason);
+        jreason = newJavaStringFromCString(env, reason ? reason : "");
     else
-        jdata = (*env)->NewStringUTF(env, (const char *)data);
+        jdata = newJavaStringFromBytes(env, data, length);
 
     if (!jreason && !jdata) {
         (*env)->DeleteLocalRef(env, jfrom);
@@ -948,7 +938,8 @@ static JNINativeMethod gMethods[] = {
         {"native_kill",        "()V",                              (void *) carrierKill        },
         {"get_address",        "()"_J("String;"),                  (void *) getAddress         },
         {"get_node_id",        "()"_J("String;"),                  (void *) getNodeId          },
-        {"create_identity_auth_proof", "([B[B)[B",               (void *) createIdentityAuthProof },
+        /* create_identity_auth_proof omitted: not present on Carrier Java 6.0.4;
+         * RegisterNatives would throw NoSuchMethodError and abort under CheckJNI. */
         {"set_nospam",         "([B)Z",                            (void *) setNospam          },
         {"get_nospam",         "()[B",                             (void *) getNospam          },
         {"set_self_info",      "("_W("UserInfo;)Z"),               (void *) setSelfInfo        },

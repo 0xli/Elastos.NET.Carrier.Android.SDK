@@ -68,4 +68,16 @@ int getStringExt(JNIEnv* env, jclass clazz, jobject jobj, const char* methodName
 
 int getByteArrayField(JNIEnv* env, jclass clazz, jobject jobj, const char* methodName, uint8_t** value);
 
+/**
+ * Build a java.lang.String from arbitrary bytes without NewStringUTF.
+ * NewStringUTF aborts under CheckJNI when the buffer is not valid Modified
+ * UTF-8 (seen on WebRTC hangup / invite payloads containing byte 0xBF).
+ * Uses ISO-8859-1 so every byte is representable; callers that expect UTF-8
+ * JSON still work for ASCII signalling.
+ */
+jstring newJavaStringFromBytes(JNIEnv* env, const void* data, size_t length);
+
+/** strlen-based helper for NUL-terminated C strings (may truncate at embedded NUL). */
+jstring newJavaStringFromCString(JNIEnv* env, const char* data);
+
 #endif

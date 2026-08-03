@@ -25,6 +25,7 @@
 #include <stdlib.h>
 #include "log.h"
 #include "utils.h"
+#include "utilsExt.h"
 #include "carrier.h"
 #include "carrierUtils.h"
 #include "carrierHandler.h"
@@ -424,7 +425,6 @@ void cbOnFriendInviteRquest(Carrier* carrier, const char* from, const char *bund
     jstring jfrom;
     jstring jhello;
 
-    (void)length;
     (void)bundle;
 
     assert(carrier);
@@ -434,12 +434,14 @@ void cbOnFriendInviteRquest(Carrier* carrier, const char* from, const char *bund
     assert(carrier == hc->nativeCarrier);
     assert(hc->env);
 
-    jfrom = (*hc->env)->NewStringUTF(hc->env, from);
+    jfrom = newJavaStringFromCString(hc->env, from);
     if (!jfrom) {
         logE("New java String object error");
         return;
     }
-    jhello = (*hc->env)->NewStringUTF(hc->env, (const char *)hello);
+    /* WebRTC hangup / ICE payloads can include non-UTF8 bytes (e.g. 0xBF).
+     * Never use NewStringUTF here — it aborts under CheckJNI. */
+    jhello = newJavaStringFromBytes(hc->env, hello, length);
     if (!jhello) {
         logE("New java String object error");
         (*hc->env)->DeleteLocalRef(hc->env, jfrom);

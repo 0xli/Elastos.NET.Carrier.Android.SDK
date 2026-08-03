@@ -29,6 +29,7 @@
 #include <carrier.h>
 #include "log.h"
 #include "utils.h"
+#include "utilsExt.h"
 #include "carrierCookie.h"
 #include "carrierExtUtils.h"
 #include "carrier_turnserver.h"
@@ -53,7 +54,6 @@ void inviteCallback(Carrier *carrier, const char *from,
     jstring jdata;
 
     (void)carrier;
-    (void)len;
 
     env = attachJvm(&needDetach);
     if (!env) {
@@ -66,13 +66,14 @@ void inviteCallback(Carrier *carrier, const char *from,
         goto finally;
     }
 
-    jfrom = (*env)->NewStringUTF(env, from);
+    jfrom = newJavaStringFromCString(env, from);
     if (!jfrom) {
         (*env)->DeleteLocalRef(env, jcarrier);
         goto finally;
     }
 
-    jdata = (*env)->NewStringUTF(env, data);
+    /* Invite / hangup payloads may contain non-UTF-8 bytes (CheckJNI abort). */
+    jdata = newJavaStringFromBytes(env, data, len);
     if (!jdata) {
         (*env)->DeleteLocalRef(env, jfrom);
         (*env)->DeleteLocalRef(env, jcarrier);
@@ -128,7 +129,6 @@ void inviteReplyCallback(Carrier *carrier, const char *from,
     jstring jdata = NULL;
 
     (void)carrier;
-    (void)len;
 
     env = attachJvm(&needDetach);
     if (!env) {
@@ -136,14 +136,14 @@ void inviteReplyCallback(Carrier *carrier, const char *from,
         return;
     }
 
-    jfrom = (*env)->NewStringUTF(env, from);
+    jfrom = newJavaStringFromCString(env, from);
     if (!jfrom)
         goto finally;
 
     if (status)
-        jreason = (*env)->NewStringUTF(env, reason);
+        jreason = newJavaStringFromCString(env, reason ? reason : "");
     else
-        jdata = (*env)->NewStringUTF(env, (const char *)data);
+        jdata = newJavaStringFromBytes(env, data, len);
 
     if (!jreason && !jdata) {
         (*env)->DeleteLocalRef(env, jfrom);

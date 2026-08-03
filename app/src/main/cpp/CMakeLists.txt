@@ -1,4 +1,5 @@
-cmake_minimum_required(VERSION 3.4.1)
+cmake_minimum_required(VERSION 3.10)
+project(carrierjni C)
 set(CMAKE_VERBOSE_MAKEFILE on)
 
 set(carrier_include_DIR ${CMAKE_SOURCE_DIR}/../../../native-dist/include)
