@@ -22,6 +22,7 @@
 
 #include <jni.h>
 #include <stdlib.h>
+#include <string.h>
 #include <assert.h>
 #include <carrier.h>
 #include "utilsExt.h"
@@ -283,6 +284,84 @@ int setJavaUserInfo(JNIEnv *env, jclass clazz, jobject jinfo, const CarrierUserI
             setString(env, clazz, jinfo, "setPhone", userInfo->phone) &&
             setString(env, clazz, jinfo, "setEmail", userInfo->email) &&
             setString(env, clazz, jinfo, "setRegion", userInfo->region));
+}
+
+static int setInt(JNIEnv *env, jclass clazz, jobject jobj, const char *methodName, int value)
+{
+    jmethodID mid = (*env)->GetMethodID(env, clazz, methodName, "(I)V");
+    if (!mid) return 0;
+    (*env)->CallVoidMethod(env, jobj, mid, (jint)value);
+    return !(*env)->ExceptionCheck(env);
+}
+
+static jobject newJavaObject(JNIEnv *env, const char *className, jclass *outClazz)
+{
+    jclass clazz = (*env)->FindClass(env, className);
+    jmethodID contor;
+    jobject jobj;
+    if (!clazz) { logE("Java class '%s' not found", className); return NULL; }
+    contor = (*env)->GetMethodID(env, clazz, "<init>", "()V");
+    if (!contor) { logE("Constructor of '%s' not found", className); return NULL; }
+    jobj = (*env)->NewObject(env, clazz, contor);
+    if (!jobj) { logE("New '%s' object error", className); return NULL; }
+    *outClazz = clazz;
+    return jobj;
+}
+
+int newJavaClientInfo(JNIEnv *env, const CarrierClientInfo *info, jobject *jinfo)
+{
+    jclass clazz;
+    jobject jobj = newJavaObject(env, _T("ClientInfo"), &clazz);
+    if (!jobj) return 0;
+    if (!(setInt(env, clazz, jobj, "setProtoVersion", (int)info->proto_version) &&
+          setString(env, clazz, jobj, "setPlatform", info->platform) &&
+          setString(env, clazz, jobj, "setOsVersion", info->os_version) &&
+          setString(env, clazz, jobj, "setAppVersion", info->app_version))) {
+        (*env)->DeleteLocalRef(env, jobj);
+        return 0;
+    }
+    *jinfo = jobj;
+    return 1;
+}
+
+int getNativeClientInfo(JNIEnv *env, jobject jinfo, CarrierClientInfo *info)
+{
+    jclass clazz = (*env)->GetObjectClass(env, jinfo);
+    int proto = 0;
+    memset(info, 0, sizeof(*info));
+    if (!(getInt(env, clazz, jinfo, "getProtoVersion", &proto) &&
+          getString(env, clazz, jinfo, "getPlatform", info->platform, sizeof(info->platform)) &&
+          getString(env, clazz, jinfo, "getOsVersion", info->os_version, sizeof(info->os_version)) &&
+          getString(env, clazz, jinfo, "getAppVersion", info->app_version, sizeof(info->app_version))))
+        return 0;
+    info->proto_version = proto < 0 ? 0 : (uint32_t)proto;
+    return 1;
+}
+
+int newJavaProfileExt(JNIEnv *env, const CarrierProfileExt *ext, jobject *jext)
+{
+    jclass clazz;
+    jobject jobj = newJavaObject(env, _T("ProfileExt"), &clazz);
+    if (!jobj) return 0;
+    if (!(setString(env, clazz, jobj, "setAvatarUrl", ext->avatar_url) &&
+          setString(env, clazz, jobj, "setUrl", ext->url) &&
+          setString(env, clazz, jobj, "setEns", ext->ens) &&
+          setString(env, clazz, jobj, "setExtra", ext->extra))) {
+        (*env)->DeleteLocalRef(env, jobj);
+        return 0;
+    }
+    *jext = jobj;
+    return 1;
+}
+
+int getNativeProfileExt(JNIEnv *env, jobject jext, CarrierProfileExt *ext)
+{
+    jclass clazz = (*env)->GetObjectClass(env, jext);
+    memset(ext, 0, sizeof(*ext));
+    return getString(env, clazz, jext, "getAvatarUrl", ext->avatar_url, sizeof(ext->avatar_url)) &&
+           getString(env, clazz, jext, "getUrl", ext->url, sizeof(ext->url)) &&
+           getString(env, clazz, jext, "getEns", ext->ens, sizeof(ext->ens)) &&
+           getString(env, clazz, jext, "getExtra", ext->extra, sizeof(ext->extra));
 }
 
 int newJavaUserInfo(JNIEnv* env, const CarrierUserInfo* userInfo, jobject* juserInfo)

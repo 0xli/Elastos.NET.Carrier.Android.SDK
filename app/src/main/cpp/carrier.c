@@ -931,7 +931,213 @@ jint getErrorCode(JNIEnv* env, jclass clazz)
 }
 
 static const char* gClassName = "org/elastos/carrier/Carrier";
+/* ---- AgentNet proto v2 ---- */
+
+static
+jbyteArray identitySign(JNIEnv *env, jobject thiz, jbyteArray jmessage)
+{
+    uint8_t signature[CARRIER_IDENTITY_SIGNATURE_BYTES];
+    jbyte *message;
+    jbyteArray result = NULL;
+    jsize len;
+    int rc;
+
+    if (!jmessage || (len = (*env)->GetArrayLength(env, jmessage)) <= 0) {
+        setErrorCode(CARRIER_GENERAL_ERROR(ERROR_INVALID_ARGS));
+        return NULL;
+    }
+    message = (*env)->GetByteArrayElements(env, jmessage, NULL);
+    if (!message) {
+        setErrorCode(CARRIER_GENERAL_ERROR(ERROR_LANGUAGE_BINDING));
+        return NULL;
+    }
+    rc = carrier_identity_sign(getCarrier(env, thiz), (const uint8_t *)message, (size_t)len, signature);
+    (*env)->ReleaseByteArrayElements(env, jmessage, message, JNI_ABORT);
+    if (rc < 0) {
+        setErrorCode(carrier_get_error());
+        return NULL;
+    }
+    result = (*env)->NewByteArray(env, CARRIER_IDENTITY_SIGNATURE_BYTES);
+    if (!result) {
+        setErrorCode(CARRIER_GENERAL_ERROR(ERROR_LANGUAGE_BINDING));
+        return NULL;
+    }
+    (*env)->SetByteArrayRegion(env, result, 0, CARRIER_IDENTITY_SIGNATURE_BYTES, (const jbyte *)signature);
+    return result;
+}
+
+static
+jint identityVerify(JNIEnv *env, jclass clazz, jstring juserId, jbyteArray jmessage, jbyteArray jsignature)
+{
+    const char *userId;
+    jbyte *message;
+    uint8_t signature[CARRIER_IDENTITY_SIGNATURE_BYTES];
+    jsize len;
+    int rc;
+    (void)clazz;
+
+    if (!juserId || !jmessage || !jsignature ||
+            (*env)->GetArrayLength(env, jsignature) != CARRIER_IDENTITY_SIGNATURE_BYTES ||
+            (len = (*env)->GetArrayLength(env, jmessage)) <= 0)
+        return -1;
+    (*env)->GetByteArrayRegion(env, jsignature, 0, CARRIER_IDENTITY_SIGNATURE_BYTES, (jbyte *)signature);
+    userId = (*env)->GetStringUTFChars(env, juserId, NULL);
+    message = (*env)->GetByteArrayElements(env, jmessage, NULL);
+    if (!userId || !message) {
+        if (userId) (*env)->ReleaseStringUTFChars(env, juserId, userId);
+        if (message) (*env)->ReleaseByteArrayElements(env, jmessage, message, JNI_ABORT);
+        return -1;
+    }
+    rc = carrier_identity_verify(userId, (const uint8_t *)message, (size_t)len, signature);
+    (*env)->ReleaseByteArrayElements(env, jmessage, message, JNI_ABORT);
+    (*env)->ReleaseStringUTFChars(env, juserId, userId);
+    return rc;
+}
+
+static
+jbyteArray exportSecretKey(JNIEnv *env, jobject thiz)
+{
+    uint8_t secret[CARRIER_IDENTITY_SECRET_BYTES];
+    jbyteArray result;
+
+    if (carrier_export_secret_key(getCarrier(env, thiz), secret) < 0) {
+        setErrorCode(carrier_get_error());
+        return NULL;
+    }
+    result = (*env)->NewByteArray(env, CARRIER_IDENTITY_SECRET_BYTES);
+    if (result)
+        (*env)->SetByteArrayRegion(env, result, 0, CARRIER_IDENTITY_SECRET_BYTES, (const jbyte *)secret);
+    else
+        setErrorCode(CARRIER_GENERAL_ERROR(ERROR_LANGUAGE_BINDING));
+    secureZero(secret, sizeof(secret));
+    return result;
+}
+
+static
+jboolean setClientInfo(JNIEnv *env, jobject thiz, jobject jinfo)
+{
+    CarrierClientInfo info;
+    if (!jinfo || !getNativeClientInfo(env, jinfo, &info)) {
+        setErrorCode(CARRIER_GENERAL_ERROR(ERROR_LANGUAGE_BINDING));
+        return JNI_FALSE;
+    }
+    if (carrier_set_client_info(getCarrier(env, thiz), &info) < 0) {
+        setErrorCode(carrier_get_error());
+        return JNI_FALSE;
+    }
+    return JNI_TRUE;
+}
+
+static
+jobject getClientInfo(JNIEnv *env, jobject thiz)
+{
+    CarrierClientInfo info;
+    jobject jinfo;
+    if (carrier_get_client_info(getCarrier(env, thiz), &info) < 0) {
+        setErrorCode(carrier_get_error());
+        return NULL;
+    }
+    if (!newJavaClientInfo(env, &info, &jinfo)) {
+        setErrorCode(CARRIER_GENERAL_ERROR(ERROR_LANGUAGE_BINDING));
+        return NULL;
+    }
+    return jinfo;
+}
+
+static
+jobject getFriendClientInfo(JNIEnv *env, jobject thiz, jstring juserId)
+{
+    CarrierClientInfo info;
+    jobject jinfo;
+    const char *userId;
+    int rc;
+
+    userId = (*env)->GetStringUTFChars(env, juserId, NULL);
+    if (!userId) {
+        setErrorCode(CARRIER_GENERAL_ERROR(ERROR_LANGUAGE_BINDING));
+        return NULL;
+    }
+    rc = carrier_get_friend_client_info(getCarrier(env, thiz), userId, &info);
+    (*env)->ReleaseStringUTFChars(env, juserId, userId);
+    if (rc < 0) {
+        setErrorCode(carrier_get_error());
+        return NULL;
+    }
+    if (!newJavaClientInfo(env, &info, &jinfo)) {
+        setErrorCode(CARRIER_GENERAL_ERROR(ERROR_LANGUAGE_BINDING));
+        return NULL;
+    }
+    return jinfo;
+}
+
+static
+jboolean setSelfProfileExt(JNIEnv *env, jobject thiz, jobject jext)
+{
+    CarrierProfileExt ext;
+    if (!jext || !getNativeProfileExt(env, jext, &ext)) {
+        setErrorCode(CARRIER_GENERAL_ERROR(ERROR_LANGUAGE_BINDING));
+        return JNI_FALSE;
+    }
+    if (carrier_set_self_profile_ext(getCarrier(env, thiz), &ext) < 0) {
+        setErrorCode(carrier_get_error());
+        return JNI_FALSE;
+    }
+    return JNI_TRUE;
+}
+
+static
+jobject getSelfProfileExt(JNIEnv *env, jobject thiz)
+{
+    CarrierProfileExt ext;
+    jobject jext;
+    if (carrier_get_self_profile_ext(getCarrier(env, thiz), &ext) < 0) {
+        setErrorCode(carrier_get_error());
+        return NULL;
+    }
+    if (!newJavaProfileExt(env, &ext, &jext)) {
+        setErrorCode(CARRIER_GENERAL_ERROR(ERROR_LANGUAGE_BINDING));
+        return NULL;
+    }
+    return jext;
+}
+
+static
+jobject getFriendProfileExt(JNIEnv *env, jobject thiz, jstring juserId)
+{
+    CarrierProfileExt ext;
+    jobject jext;
+    const char *userId;
+    int rc;
+
+    userId = (*env)->GetStringUTFChars(env, juserId, NULL);
+    if (!userId) {
+        setErrorCode(CARRIER_GENERAL_ERROR(ERROR_LANGUAGE_BINDING));
+        return NULL;
+    }
+    rc = carrier_get_friend_profile_ext(getCarrier(env, thiz), userId, &ext);
+    (*env)->ReleaseStringUTFChars(env, juserId, userId);
+    if (rc < 0) {
+        setErrorCode(carrier_get_error());
+        return NULL;
+    }
+    if (!newJavaProfileExt(env, &ext, &jext)) {
+        setErrorCode(CARRIER_GENERAL_ERROR(ERROR_LANGUAGE_BINDING));
+        return NULL;
+    }
+    return jext;
+}
+
 static JNINativeMethod gMethods[] = {
+        /* AgentNet proto v2 */
+        {"identity_sign",           "([B)[B",                                     (void *) identitySign        },
+        {"identity_verify",         "("_J("String;")"[B[B)I",                      (void *) identityVerify      },
+        {"export_secret_key",       "()[B",                                       (void *) exportSecretKey     },
+        {"set_client_info",         "("_W("ClientInfo;)Z"),                       (void *) setClientInfo       },
+        {"get_client_info",         "()"_W("ClientInfo;"),                        (void *) getClientInfo       },
+        {"get_friend_client_info",  "("_J("String;")")"_W("ClientInfo;"),          (void *) getFriendClientInfo },
+        {"set_self_profile_ext",    "("_W("ProfileExt;)Z"),                       (void *) setSelfProfileExt   },
+        {"get_self_profile_ext",    "()"_W("ProfileExt;"),                        (void *) getSelfProfileExt   },
+        {"get_friend_profile_ext",  "("_J("String;")")"_W("ProfileExt;"),          (void *) getFriendProfileExt },
         {"native_init",        "("_W("Carrier$Options;")_W("Carrier$Callbacks;)Z"),
                                                                    (void *) carrierInit        },
         {"native_run",         "(I)Z",                             (void *) carrierRun         },

@@ -56,6 +56,12 @@ void cleanupOptionsHelper(OptionsHelper* opts);
 
 int getNativeUserInfo(JNIEnv* env, jobject juserInfo, CarrierUserInfo* ui);
 
+/* AgentNet proto v2 */
+int newJavaClientInfo(JNIEnv *env, const CarrierClientInfo *info, jobject *jinfo);
+int getNativeClientInfo(JNIEnv *env, jobject jinfo, CarrierClientInfo *info);
+int newJavaProfileExt(JNIEnv *env, const CarrierProfileExt *ext, jobject *jext);
+int getNativeProfileExt(JNIEnv *env, jobject jext, CarrierProfileExt *ext);
+
 int newJavaUserInfo(JNIEnv* env, const CarrierUserInfo* userInfo, jobject* juserInfo);
 
 int newJavaFriendInfo(JNIEnv* env, const CarrierFriendInfo* friendInfo, jobject* jfriendInfo);

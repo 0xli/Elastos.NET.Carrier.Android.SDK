@@ -353,6 +353,15 @@ public class Carrier {
 	private native String get_address();
 	private native String get_node_id();
 	private native byte[] create_identity_auth_proof(byte[] serverPublicKey, byte[] transcript);
+	private native byte[] identity_sign(byte[] message);
+	private static native int identity_verify(String userId, byte[] message, byte[] signature);
+	private native byte[] export_secret_key();
+	private native boolean set_client_info(ClientInfo info);
+	private native ClientInfo get_client_info();
+	private native ClientInfo get_friend_client_info(String userId);
+	private native boolean set_self_profile_ext(ProfileExt ext);
+	private native ProfileExt get_self_profile_ext();
+	private native ProfileExt get_friend_profile_ext(String userId);
 
 	private native boolean set_nospam(byte[] nospam);
 	private native byte[] get_nospam();
@@ -594,6 +603,97 @@ public class Carrier {
 	 * @return 32-byte HMAC-SHA256 proof.
 	 * @throws CarrierException if proof creation fails.
 	 */
+	/**
+	 * Sign a message with this Carrier identity (XEdDSA over the identity's
+	 * X25519 key). Anyone holding the userid verifies it with
+	 * {@link #identityVerify}; the JavaScript peer and beagle-web verify the
+	 * same bytes. Behind "Sign in with Beagle" (sign
+	 * {@code "decent-auth\n<origin>\n<nonce>"}) and beagles.eth registration.
+	 * Signatures are randomized.
+	 *
+	 * @return the 64-byte signature
+	 */
+	public byte[] identitySign(byte[] message) throws CarrierException {
+		if (message == null || message.length == 0)
+			throw new IllegalArgumentException("message must not be empty");
+		byte[] sig = identity_sign(message);
+		if (sig == null)
+			throw CarrierException.fromErrorCode(get_error_code());
+		return sig;
+	}
+
+	/**
+	 * Verify a signature from {@link #identitySign} (or the JavaScript peer)
+	 * against a userid. Needs no Carrier instance; false for any bad input.
+	 */
+	public static boolean identityVerify(String userId, byte[] message, byte[] signature) {
+		if (userId == null || userId.isEmpty() || message == null || message.length == 0 ||
+				signature == null || signature.length != 64)
+			return false;
+		return identity_verify(userId, message, signature) == 1;
+	}
+
+	/**
+	 * This identity's 32-byte secret key, for backup or moving the identity to
+	 * another client. Keep it in the Android Keystore only; the matching import
+	 * is {@code Options.setSecretKey} on a fresh data directory.
+	 */
+	public byte[] exportSecretKey() throws CarrierException {
+		byte[] secret = export_secret_key();
+		if (secret == null)
+			throw CarrierException.fromErrorCode(get_error_code());
+		return secret;
+	}
+
+	/** See {@link ClientInfo}: proto version 2 only if this app answers DNPACK1 ACKs. */
+	public void setClientInfo(ClientInfo info) throws CarrierException {
+		if (info == null)
+			throw new IllegalArgumentException();
+		if (!set_client_info(info))
+			throw CarrierException.fromErrorCode(get_error_code());
+	}
+
+	public ClientInfo getClientInfo() throws CarrierException {
+		ClientInfo info = get_client_info();
+		if (info == null)
+			throw CarrierException.fromErrorCode(get_error_code());
+		return info;
+	}
+
+	/** What a friend's client advertised; proto version 0 is a legacy peer (5 MB cap, no profile). */
+	public ClientInfo getFriendClientInfo(String userId) throws CarrierException {
+		if (userId == null || userId.isEmpty())
+			throw new IllegalArgumentException();
+		ClientInfo info = get_friend_client_info(userId);
+		if (info == null)
+			throw CarrierException.fromErrorCode(get_error_code());
+		return info;
+	}
+
+	/** Publish avatar URL / link / ENS name / extra. Fails when the userinfo would not fit 1007 bytes. */
+	public void setSelfProfileExt(ProfileExt ext) throws CarrierException {
+		if (ext == null)
+			throw new IllegalArgumentException();
+		if (!set_self_profile_ext(ext))
+			throw CarrierException.fromErrorCode(get_error_code());
+	}
+
+	public ProfileExt getSelfProfileExt() throws CarrierException {
+		ProfileExt ext = get_self_profile_ext();
+		if (ext == null)
+			throw CarrierException.fromErrorCode(get_error_code());
+		return ext;
+	}
+
+	public ProfileExt getFriendProfileExt(String userId) throws CarrierException {
+		if (userId == null || userId.isEmpty())
+			throw new IllegalArgumentException();
+		ProfileExt ext = get_friend_profile_ext(userId);
+		if (ext == null)
+			throw CarrierException.fromErrorCode(get_error_code());
+		return ext;
+	}
+
 	public byte[] createIdentityAuthProof(byte[] serverPublicKey, byte[] transcript)
 			throws CarrierException {
 		if (serverPublicKey == null || serverPublicKey.length != 32)
