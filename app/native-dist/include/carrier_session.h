@@ -337,7 +337,7 @@ void carrier_session_close(CarrierSession *session);
  * @param
  *      address     [out] The buffer that will receive the peer address.
  *                        The buffer size should at least
- *                        (2 * CARRIER_MAX_ID_LEN + 1) bytes.
+ *                        (2 * ELA_MAX_ID_LEN + 1) bytes.
  * @param
  *      len         [in] The buffer size of appid.
  *
