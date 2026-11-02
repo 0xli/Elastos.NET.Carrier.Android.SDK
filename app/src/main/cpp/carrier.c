@@ -1136,6 +1136,38 @@ jobject getFriendProfileExt(JNIEnv *env, jobject thiz, jstring juserId)
     return jext;
 }
 
+/* The avatar URL a pending friend request carried (friendreq avatar_url,
+ * 2026-11-01). NULL with error 0 when the SDK remembers no request from
+ * userId (never received, or evicted after 32 newer requesters); NULL with
+ * an error code otherwise. The punk id travels as UserInfo.gender of
+ * onFriendRequest. */
+static
+jobject getFriendRequestProfileExt(JNIEnv *env, jobject thiz, jstring juserId)
+{
+    CarrierProfileExt ext;
+    jobject jext;
+    const char *userId;
+    int rc;
+
+    userId = (*env)->GetStringUTFChars(env, juserId, NULL);
+    if (!userId) {
+        setErrorCode(CARRIER_GENERAL_ERROR(ERROR_LANGUAGE_BINDING));
+        return NULL;
+    }
+    rc = carrier_get_friend_request_profile_ext(getCarrier(env, thiz), userId, &ext);
+    (*env)->ReleaseStringUTFChars(env, juserId, userId);
+    if (rc < 0) {
+        int err = carrier_get_error();
+        setErrorCode(err == CARRIER_GENERAL_ERROR(ERROR_NOT_EXIST) ? 0 : err);
+        return NULL;
+    }
+    if (!newJavaProfileExt(env, &ext, &jext)) {
+        setErrorCode(CARRIER_GENERAL_ERROR(ERROR_LANGUAGE_BINDING));
+        return NULL;
+    }
+    return jext;
+}
+
 static JNINativeMethod gMethods[] = {
         /* AgentNet proto v2 */
         {"identity_sign",           "([B)[B",                                     (void *) identitySign        },
@@ -1147,6 +1179,7 @@ static JNINativeMethod gMethods[] = {
         {"set_self_profile_ext",    "("_W("ProfileExt;)Z"),                       (void *) setSelfProfileExt   },
         {"get_self_profile_ext",    "()"_W("ProfileExt;"),                        (void *) getSelfProfileExt   },
         {"get_friend_profile_ext",  "("_J("String;")")"_W("ProfileExt;"),          (void *) getFriendProfileExt },
+        {"get_friend_request_profile_ext", "("_J("String;")")"_W("ProfileExt;"),   (void *) getFriendRequestProfileExt },
         {"native_init",        "("_W("Carrier$Options;")_W("Carrier$Callbacks;)Z"),
                                                                    (void *) carrierInit        },
         {"native_run",         "(I)Z",                             (void *) carrierRun         },

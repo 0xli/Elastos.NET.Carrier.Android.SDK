@@ -362,6 +362,7 @@ public class Carrier {
 	private native boolean set_self_profile_ext(ProfileExt ext);
 	private native ProfileExt get_self_profile_ext();
 	private native ProfileExt get_friend_profile_ext(String userId);
+	private native ProfileExt get_friend_request_profile_ext(String userId);
 
 	private native boolean set_nospam(byte[] nospam);
 	private native byte[] get_nospam();
@@ -691,6 +692,35 @@ public class Carrier {
 		ProfileExt ext = get_friend_profile_ext(userId);
 		if (ext == null)
 			throw CarrierException.fromErrorCode(get_error_code());
+		return ext;
+	}
+
+	/**
+	 * What the most recent friend request from {@code userId} carried of the
+	 * requester's profile (friendreq {@code avatar_url}, 2026-11-01):
+	 * {@link ProfileExt#getAvatarUrl()} is the requester's custom avatar URL,
+	 * "" when the request had none; the other fields are "". The requester's
+	 * CryptoPunk id arrives separately as {@code UserInfo.getGender()} of
+	 * {@code onFriendRequest}.
+	 * <p>
+	 * The SDK remembers the last 32 requesters in memory only, so call this
+	 * inside {@code onFriendRequest} (or right after) and keep the URL with
+	 * the app's own pending-request record.
+	 *
+	 * @return the ext, or {@code null} when no request from {@code userId}
+	 *         is remembered (never received, or evicted).
+	 * @throws CarrierException on a binding or native error
+	 */
+	public ProfileExt getFriendRequestProfileExt(String userId) throws CarrierException {
+		if (userId == null || userId.isEmpty())
+			throw new IllegalArgumentException();
+		ProfileExt ext = get_friend_request_profile_ext(userId);
+		if (ext == null) {
+			int code = get_error_code();
+			if (code == 0)
+				return null;
+			throw CarrierException.fromErrorCode(code);
+		}
 		return ext;
 	}
 
