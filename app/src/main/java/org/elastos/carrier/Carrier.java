@@ -349,6 +349,7 @@ public class Carrier {
 	private native boolean native_init(Options options, Callbacks callbacks);
 	private native boolean native_run(int interval);
 	private native void  native_kill();
+	private native void native_set_network_suspended(boolean suspended);
 
 	private native String get_address();
 	private native String get_node_id();
@@ -546,6 +547,17 @@ public class Carrier {
 			}
 
 			Log.i(TAG, "Carrier instance killed");
+		}
+	}
+
+	/**
+	 * Disconnect and pause the background network loop without destroying this
+	 * node. Clear the flag on foreground entry or after a wake notification.
+	 * The identity and locally cached friend data remain available while idle.
+	 */
+	public synchronized void setNetworkSuspended(boolean suspended) {
+		if (!didKill) {
+			native_set_network_suspended(suspended);
 		}
 	}
 

@@ -1168,6 +1168,16 @@ jobject getFriendRequestProfileExt(JNIEnv *env, jobject thiz, jstring juserId)
     return jext;
 }
 
+static void setNetworkSuspended(JNIEnv *env, jobject thiz, jboolean suspended)
+{
+    HandlerContext *hc = getContext(env, thiz);
+    if (hc && hc->nativeCarrier) {
+        carrier_set_network_suspended(hc->nativeCarrier, suspended == JNI_TRUE);
+    } else {
+        logW("Cannot change Carrier network state without a native instance");
+    }
+}
+
 static JNINativeMethod gMethods[] = {
         /* AgentNet proto v2 */
         {"identity_sign",           "([B)[B",                                     (void *) identitySign        },
@@ -1184,6 +1194,7 @@ static JNINativeMethod gMethods[] = {
                                                                    (void *) carrierInit        },
         {"native_run",         "(I)Z",                             (void *) carrierRun         },
         {"native_kill",        "()V",                              (void *) carrierKill        },
+        {"native_set_network_suspended", "(Z)V",                    (void *) setNetworkSuspended },
         {"get_address",        "()"_J("String;"),                  (void *) getAddress         },
         {"get_node_id",        "()"_J("String;"),                  (void *) getNodeId          },
         {"create_identity_auth_proof", "([B[B)[B",                 (void *) createIdentityAuthProof },

@@ -1077,6 +1077,9 @@ void carrier_kill(Carrier *carrier);
 CARRIER_API
 int carrier_run(Carrier *carrier, int interval);
 
+/** Suspend or resume networking without destroying the Carrier instance. */
+void carrier_set_network_suspended(Carrier *carrier, bool suspended);
+
 /******************************************************************************
  * Internal node information
  *****************************************************************************/
