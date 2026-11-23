@@ -716,13 +716,12 @@ jlong sendMessageWithReceipt(JNIEnv* env, jobject thiz, jstring jto, jbyteArray 
                             jobject jreceiptHandler)
 {
     const char *to;
-    jbyte *msg;
+    jbyte *msg = NULL;
     jsize len;
-    int64_t rc;
+    int64_t rc = -1;
     uint32_t msgid;
-    bool is_offline;
-    jobject gjhandler;
-    void **argv;
+    jobject gjhandler = NULL;
+    void **argv = NULL;
 
     assert(jto);
     assert(jmsg);
@@ -734,40 +733,43 @@ jlong sendMessageWithReceipt(JNIEnv* env, jobject thiz, jstring jto, jbyteArray 
     }
 
     msg = (*env)->GetByteArrayElements(env, jmsg, NULL);
+    if (!msg) {
+        setErrorCode(CARRIER_GENERAL_ERROR(ERROR_OUT_OF_MEMORY));
+        goto done;
+    }
     len = (*env)->GetArrayLength(env, jmsg);
-    assert(msg);
     assert(len);
 
     gjhandler = (*env)->NewGlobalRef(env, jreceiptHandler);
     if (!gjhandler) {
         setErrorCode(CARRIER_GENERAL_ERROR(ERROR_LANGUAGE_BINDING));
-        goto errorExit;
+        goto done;
     }
 
     argv = (void**)calloc(1, sizeof(void*) * 4);
     if (!argv) {
         setErrorCode(CARRIER_GENERAL_ERROR(ERROR_OUT_OF_MEMORY));
-        goto errorExit;
+        goto done;
     }
     argv[0] = getCarrierEnv(env, thiz);
     argv[1] = gjhandler;
 
     rc = carrier_send_friend_message(getCarrier(env, thiz), to, msg, len, &msgid,
                                  messageReceiptCallback,(void *)argv);
-    (*env)->ReleaseStringUTFChars(env, jto, to);
-
     if (rc < 0) {
         setErrorCode(carrier_get_error());
-        free(argv);
-        goto errorExit;
+    } else {
+        // The receipt callback owns these after a successful send.
+        argv = NULL;
+        gjhandler = NULL;
     }
 
-    return (jlong)msgid;
-
-errorExit:
-    if (to) (*env)->ReleaseStringUTFChars(env, jto, to);
+done:
+    free(argv);
     if (gjhandler) (*env)->DeleteGlobalRef(env, gjhandler);
-    return -1;
+    if (msg) (*env)->ReleaseByteArrayElements(env, jmsg, msg, JNI_ABORT);
+    (*env)->ReleaseStringUTFChars(env, jto, to);
+    return rc < 0 ? -1 : (jlong)msgid;
 }
 
 static
