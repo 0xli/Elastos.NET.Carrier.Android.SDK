@@ -1180,6 +1180,25 @@ static void setNetworkSuspended(JNIEnv *env, jobject thiz, jboolean suspended)
     }
 }
 
+static jboolean expressPullNow(JNIEnv *env, jobject thiz)
+{
+    HandlerContext *hc = getContext(env, thiz);
+
+    (void)env;
+
+    if (!hc || !hc->nativeCarrier) {
+        setErrorCode(CARRIER_GENERAL_ERROR(ERROR_WRONG_STATE));
+        return JNI_FALSE;
+    }
+
+    if (carrier_express_pull_now(hc->nativeCarrier) < 0) {
+        setErrorCode(carrier_get_error());
+        return JNI_FALSE;
+    }
+
+    return JNI_TRUE;
+}
+
 static JNINativeMethod gMethods[] = {
         /* AgentNet proto v2 */
         {"identity_sign",           "([B)[B",                                     (void *) identitySign        },
@@ -1197,6 +1216,7 @@ static JNINativeMethod gMethods[] = {
         {"native_run",         "(I)Z",                             (void *) carrierRun         },
         {"native_kill",        "()V",                              (void *) carrierKill        },
         {"native_set_network_suspended", "(Z)V",                    (void *) setNetworkSuspended },
+        {"native_express_pull_now", "()Z",                          (void *) expressPullNow     },
         {"get_address",        "()"_J("String;"),                  (void *) getAddress         },
         {"get_node_id",        "()"_J("String;"),                  (void *) getNodeId          },
         {"create_identity_auth_proof", "([B[B)[B",                 (void *) createIdentityAuthProof },

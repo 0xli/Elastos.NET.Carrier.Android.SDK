@@ -350,6 +350,7 @@ public class Carrier {
 	private native boolean native_run(int interval);
 	private native void  native_kill();
 	private native void native_set_network_suspended(boolean suspended);
+	private native boolean native_express_pull_now();
 
 	private native String get_address();
 	private native String get_node_id();
@@ -559,6 +560,27 @@ public class Carrier {
 		if (!didKill) {
 			native_set_network_suspended(suspended);
 		}
+	}
+
+	/**
+	 * Pull the offline (Express) mailbox now, on every configured Express
+	 * node, instead of waiting for the regular pull timer (minutes). For an
+	 * app that learns out of band that mail is waiting: a doorbell frame, a
+	 * push.
+	 *
+	 * Safe from any thread. It only queues the pull; messages and friend
+	 * requests arrive through the usual handler callbacks. Calls are coalesced
+	 * (the pull in progress plus at most one queued), so calling it for every
+	 * notification is fine.
+	 *
+	 * @throws CarrierException when the instance was killed, or no Express
+	 *         node is configured.
+	 */
+	public synchronized void expressPullNow() throws CarrierException {
+		if (didKill)
+			throw CarrierException.fromErrorCode(0x8100000F, "Carrier instance was killed");
+		if (!native_express_pull_now())
+			throw CarrierException.fromErrorCode(get_error_code());
 	}
 
 	/**

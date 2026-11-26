@@ -1077,6 +1077,15 @@ void carrier_kill(Carrier *carrier);
 CARRIER_API
 int carrier_run(Carrier *carrier, int interval);
 
+/**
+ * Pull the offline (Express) mailbox now on every configured Express node.
+ * Any thread; calls are coalesced (the pull in progress plus at most one
+ * queued). 0 on success; -1 otherwise, see carrier_get_error()
+ * (ERROR_NOT_EXIST when no Express node is configured).
+ */
+CARRIER_API
+int carrier_express_pull_now(Carrier *carrier);
+
 /** Suspend or resume networking without destroying the Carrier instance. */
 void carrier_set_network_suspended(Carrier *carrier, bool suspended);
 
